@@ -8,9 +8,15 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="wrap">
-    <h1>MedTrack <span class="ai">AI</span></h1>
-    <p class="tagline">Never wonder "did I take it?" again.</p>
+  <div class="wrap hdr">
+    <span class="medmark" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    <div>
+      <h1>MedTrack <span class="ai">AI</span></h1>
+      <p class="tagline">Never wonder "did I take it?" again.</p>
+    </div>
+    <p class="hdr-date" id="today-line"></p>
   </div>
 </header>
 
@@ -19,13 +25,16 @@
   <section id="missed-banner" class="banner" style="display:none"></section>
 
   <section class="stats-row">
-    <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses today</span></div>
-    <div class="stat"><span class="num" id="stat-refills">0</span><span class="lbl">need refill</span></div>
+    <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses taken today</span></div>
+    <div class="stat alertable"><span class="num" id="stat-refills">0</span><span class="lbl">need a refill</span></div>
     <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
   </section>
 
   <section class="panel">
-    <h2>Add a medication</h2>
+    <div class="panel-head">
+      <h2>Add a medication</h2>
+      <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
+    </div>
     <form id="med-form">
       <div class="row">
         <label>Name
@@ -52,16 +61,15 @@
       <div id="form-error" class="error" style="display:none"></div>
       <button type="submit" class="primary">Add medication</button>
     </form>
-    <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
   </section>
 
   <section>
-    <h2>Today's schedule</h2>
+    <h2 class="section-title">Today's schedule <span class="section-sub">tap a slot to log a dose</span></h2>
     <div id="med-list"></div>
   </section>
 
   <section>
-    <h2>Last 7 days</h2>
+    <h2 class="section-title">Weekly pill box <span class="section-sub">last 7 days</span></h2>
     <div id="history" class="history"></div>
   </section>
 
@@ -70,6 +78,10 @@
   </footer>
 </main>
 
+<script>
+document.getElementById('today-line').textContent =
+  new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+</script>
 <script src="js/logic.js"></script>
 <script src="js/app.js"></script>
 </body>

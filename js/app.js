@@ -54,7 +54,11 @@
     el('stat-meds').textContent = meds.length;
 
     if (!meds.length) {
-      list.innerHTML = '<div class="empty">No medications yet. Add your first one above.</div>';
+      list.innerHTML = '<div class="empty"><span class="big" aria-hidden="true">' +
+        '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0f766e" stroke-width="1.8" stroke-linecap="round">' +
+        '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-35 12 12)"/>' +
+        '<line x1="9.2" y1="7.9" x2="14.8" y2="16.1"/></svg></span>' +
+        'No medications yet. Add your first one above.</div>';
       renderHistory();
       return;
     }

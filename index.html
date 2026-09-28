@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedTrack AI — Medication Schedule Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1>💊 MedTrack <span class="ai">AI</span></h1>
+    <p class="tagline">Never wonder "did I take it?" again.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="disclaimer" id="disclaimer"></section>
+  <section id="missed-banner" class="banner" style="display:none"></section>
+
+  <section class="stats-row">
+    <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses today</span></div>
+    <div class="stat"><span class="num" id="stat-refills">0</span><span class="lbl">need refill</span></div>
+    <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Add a medication</h2>
+    <form id="med-form">
+      <div class="row">
+        <label>Name
+          <input id="f-name" type="text" maxlength="80" placeholder="e.g. Lisinopril" required>
+        </label>
+        <label>Dose
+          <input id="f-dose" type="text" maxlength="40" placeholder="e.g. 10mg, 1 tablet" required>
+        </label>
+      </div>
+      <div class="row">
+        <label>Schedule times (comma-separated HH:MM)
+          <input id="f-times" type="text" placeholder="e.g. 08:00, 20:00" required>
+        </label>
+        <label>Pills remaining
+          <input id="f-pills" type="number" min="0" step="1" placeholder="e.g. 30" required>
+        </label>
+        <label>Refill alert (days left)
+          <input id="f-threshold" type="number" min="0" step="1" value="7">
+        </label>
+      </div>
+      <label>Notes (optional)
+        <input id="f-notes" type="text" maxlength="200" placeholder="e.g. take with food">
+      </label>
+      <div id="form-error" class="error" style="display:none"></div>
+      <button type="submit" class="primary">Add medication</button>
+    </form>
+    <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
+  </section>
+
+  <section>
+    <h2>Today's schedule</h2>
+    <div id="med-list"></div>
+  </section>
+
+  <section>
+    <h2>Last 7 days</h2>
+    <div id="history" class="history"></div>
+  </section>
+
+  <footer class="foot">
+    <p>MedTrack AI runs 100% in your browser. Your medication list never leaves this device — no accounts, no tracking.</p>
+  </footer>
+</main>
+
+<script src="js/logic.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

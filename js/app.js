@@ -36,7 +36,7 @@
     var banner = el('missed-banner');
     if (missed.length) {
       banner.style.display = 'block';
-      banner.innerHTML = '<strong>⚠️ ' + missed.length + ' dose' + (missed.length > 1 ? 's' : '') +
+      banner.innerHTML = '<strong>' + missed.length + ' dose' + (missed.length > 1 ? 's' : '') +
         ' missed so far today:</strong><br>' +
         missed.map(function (x) { return esc(x.name) + ' ' + esc(x.dose) + ' — was due ' + esc(x.time); }).join('<br>') +
         '<div class="tiny">If you missed a dose, follow your prescriber\u2019s instructions — don\u2019t double up on your own.</div>';
@@ -72,7 +72,7 @@
         '<div class="card-head"><div><h3>' + esc(m.name) + '</h3>' +
         '<div class="meta">' + esc(m.dose) + (m.notes ? ' · ' + esc(m.notes) : '') + '</div></div>' +
         '<div class="pills"><span class="num">' + m.pillsRemaining + '</span><span class="lbl">pills left · ~' + dl + ' days</span></div></div>' +
-        (refill ? '<div class="refill">🔔 Refill soon — about ' + dl + ' day' + (dl === 1 ? '' : 's') + ' left.</div>' : '') +
+        (refill ? '<div class="refill">Refill soon — about ' + dl + ' day' + (dl === 1 ? '' : 's') + ' left.</div>' : '') +
         '<div class="slots">' + slots + '</div>' +
         '<div class="stats">7-day adherence: <strong>' + (adh == null ? '—' : adh + '%') + '</strong></div>' +
         '<div class="card-actions"><button class="danger" data-act="del" data-id="' + m.id + '">Remove</button></div>' +

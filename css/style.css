@@ -18,7 +18,7 @@
   --danger-bg: #fdeaea;
   --good: #15803d;
   --good-bg: #e8f4ea;
-  --radius: 16px;
+  --radius: 0;
   --shadow: 0 1px 3px rgba(20, 32, 29, .07), 0 4px 14px rgba(20, 32, 29, .05);
   --ring: rgba(15, 118, 110, .22);
 }
@@ -62,7 +62,7 @@ p { margin: 0 0 12px; }
   background: var(--accent-soft);
   color: var(--accent-dark);
   border: 1px solid var(--accent-line);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 800;
@@ -71,7 +71,7 @@ p { margin: 0 0 12px; }
 .tagline { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
 .hdr-date { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--accent-dark);
   background: var(--accent-soft); border: 1px solid var(--accent-line);
-  padding: 8px 16px; border-radius: 999px; white-space: nowrap; }
+  padding: 8px 16px; border-radius: 0; white-space: nowrap; }
 
 /* Disclaimer + banners */
 .disclaimer {
@@ -101,7 +101,7 @@ p { margin: 0 0 12px; }
 .stat {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 60px;
+  border-radius: 0;
   padding: 16px 18px;
   text-align: center;
   box-shadow: var(--shadow);
@@ -136,7 +136,7 @@ input[type=text], input[type=number] {
   color: var(--ink);
   background: #fff;
   border: 1.5px solid #ccd8d4;
-  border-radius: 11px;
+  border-radius: 0;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 input::placeholder { color: #9db3ad; }
@@ -152,7 +152,7 @@ button {
   font-size: 14px;
   font-weight: 550;
   padding: 10px 18px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1.5px solid #ccd8d4;
   background: #fff;
   color: var(--ink);
@@ -182,7 +182,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 0;
   padding: 22px 24px;
   margin-bottom: 16px;
   box-shadow: var(--shadow);
@@ -205,7 +205,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
   text-align: center;
   background: var(--accent-soft);
   border: 1.5px solid var(--accent-line);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 10px 22px;
   flex-shrink: 0;
   min-width: 120px;
@@ -222,7 +222,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
   font-weight: 650;
   background: var(--warn-bg);
   border: 1px solid #f0d9ac;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 9px 14px;
 }
 
@@ -231,7 +231,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
 .slot {
   font-size: 15px; font-weight: 700; padding: 12px 24px; min-width: 96px; text-align: center;
   font-variant-numeric: tabular-nums;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1.5px solid #ccd8d4;
   background: #fff;
   color: var(--body);
@@ -266,7 +266,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
 .hday {
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: 14px;
+  border-radius: 0;
   padding: 14px 4px 12px;
   text-align: center;
   font-size: 12px;
@@ -280,7 +280,7 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
   display: block;
   width: 34px; height: 12px;
   margin: 8px auto 0;
-  border-radius: 999px;
+  border-radius: 0;
   background: #dfe7e4;
 }
 .hday strong { display: block; font-size: 14px; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums; }
@@ -300,9 +300,9 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
   .topbar h1 { font-size: 22px; }
   .hdr-date { display: none; }
   .panel { padding: 20px; }
-  .card { padding: 18px; border-radius: 16px; }
+  .card { padding: 18px; border-radius: 0; }
   .stats-row { gap: 8px; }
-  .stat { padding: 12px 8px; border-radius: 22px; }
+  .stat { padding: 12px 8px; border-radius: 0; }
   .stat .num { font-size: 21px; }
   .history { gap: 5px; }
   .hday { font-size: 10.5px; padding: 10px 2px 8px; }

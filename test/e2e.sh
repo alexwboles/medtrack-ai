@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MedTrack AI end-to-end tests — 7 flows exercised in Node against js/logic.js.
+# MedTrack AI end-to-end tests — 11 flows exercised in Node against js/logic.js.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -53,6 +53,37 @@ const badLog = M.logDose(meds, 'nope', T, '08:00');
 const badSlot = M.logDose(meds, a.med.id, T, '13:00');
 (!badAdd.ok && !badLog.ok && !badSlot.ok)
   ? ok('flow7: bad time rejected; unknown med + unscheduled slot fail cleanly') : bad('flow7');
+
+// Flow 8: refill journey — low supply alerts, refill resets, alert clears
+a.med.pillsRemaining = 6; // 2x daily -> 3 days left, threshold 7 -> alert
+const before = M.summarize(meds, T, '21:00')[0];
+const rf = M.refillMed(meds, a.med.id, 60);
+const afterRf = M.summarize(meds, T, '21:00')[0];
+(before.refillAlert && rf.ok && a.med.pillsRemaining === 60 &&
+ afterRf.daysLeft === 30 && !afterRf.refillAlert)
+  ? ok('flow8: refill alert -> log refill 60 -> 30 days left, alert clears') : bad('flow8');
+
+// Flow 9: dose log shows what was taken and when
+M.logDose(meds, a.med.id, M.addDays(T, -1), '08:00');
+const dl = M.doseLog(a.med, 5);
+const hasYesterday = dl.some(e => e.date === M.addDays(T, -1) && e.time === '08:00');
+const hasToday = dl.some(e => e.date === T && e.time === '08:00');
+(dl.length >= 2 && hasYesterday && hasToday)
+  ? ok('flow9: dose log lists today + yesterday morning doses') : bad('flow9');
+
+// Flow 10: CSV export carries the full roster with adherence
+const csv = M.medsToCSV(meds, T, '21:00');
+const cl = csv.split('\n');
+(cl[0] === 'name,dose,times,pills_remaining,days_left,refill_alert,adherence_7d' &&
+ cl.length === 3 && cl[1].indexOf('Metformin') === 0 && cl[2].indexOf('Vitamin D') === 0)
+  ? ok('flow10: CSV header + one row per medication') : bad('flow10 csv=' + csv);
+
+// Flow 11: search filter (UI-side rule) matches names case-insensitively
+const q = 'metform';
+const hits = meds.filter(m => m.name.toLowerCase().indexOf(q) !== -1);
+const noHits = meds.filter(m => m.name.toLowerCase().indexOf('zzz') !== -1);
+(hits.length === 1 && hits[0].name === 'Metformin' && noHits.length === 0)
+  ? ok('flow11: search "metform" -> 1 hit; "zzz" -> none') : bad('flow11');
 
 console.log('');
 console.log('e2e: ' + pass + ' passed, ' + fail + ' failed');

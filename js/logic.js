@@ -156,6 +156,48 @@
     return Math.round((t / s) * 100);
   }
 
+  // Log a refill: reset pills remaining to the new count. Returns {ok, med|error}.
+  function refillMed(meds, id, newCount) {
+    var med = findMed(meds, id);
+    if (!med) return { ok: false, error: 'Medication not found.' };
+    var n = Number(newCount);
+    if (isNaN(n) || n < 0 || Math.floor(n) !== n) {
+      return { ok: false, error: 'New pill count must be a whole number \u2265 0.' };
+    }
+    med.pillsRemaining = n;
+    return { ok: true, med: med };
+  }
+
+  // Most recent logged doses, newest first. limit defaults to 10.
+  function doseLog(med, limit) {
+    if (!med || !Array.isArray(med.log)) return [];
+    var n = limit == null ? 10 : Math.max(1, Math.round(Number(limit) || 10));
+    return med.log.slice().sort(function (a, b) {
+      return String(b.at || '').localeCompare(String(a.at || '')) ||
+        String(b.date + b.time).localeCompare(String(a.date + a.time));
+    }).slice(0, n);
+  }
+
+  // CSV export of the medication list with adherence + refill status.
+  function medsToCSV(meds, today, nowHHMM) {
+    today = today || todayStr();
+    function cell(v) {
+      var s = String(v == null ? '' : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    var rows = [['name', 'dose', 'times', 'pills_remaining', 'days_left', 'refill_alert', 'adherence_7d']];
+    (meds || []).forEach(function (m) {
+      var adh = adherence(m, 7, today);
+      rows.push([
+        m.name, m.dose, (m.times || []).join(';'),
+        m.pillsRemaining, daysLeft(m),
+        refillAlert(m) ? 'yes' : 'no',
+        adh == null ? '' : adh + '%'
+      ]);
+    });
+    return rows.map(function (r) { return r.map(cell).join(','); }).join('\n');
+  }
+
   function summarize(meds, today, nowHHMM) {
     today = today || todayStr();
     return meds.map(function (m) {
@@ -174,6 +216,7 @@
     toStr: toStr, parse: parse, addDays: addDays, todayStr: todayStr,
     validateMed: validateMed, addMed: addMed, findMed: findMed,
     logDose: logDose, undoDose: undoDose, takenOn: takenOn,
+    refillMed: refillMed, doseLog: doseLog, medsToCSV: medsToCSV,
     dosesPerDay: dosesPerDay, daysLeft: daysLeft, refillAlert: refillAlert,
     missedDoses: missedDoses, allMissed: allMissed,
     historyFor: historyFor, adherence: adherence, summarize: summarize

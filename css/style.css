@@ -315,3 +315,37 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- search / print / export toolbar ---------- */
+.list-toolbar {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+.list-toolbar input[type="search"] {
+  flex: 1 1 220px; padding: 10px 14px; font-size: 14px; font-family: inherit;
+  border: 1.5px solid #ccd8d4; border-radius: 0; background: #fff; color: var(--ink);
+}
+.list-toolbar input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+/* ---------- per-med dose log ---------- */
+.dose-log {
+  margin-top: 12px; border: 1px solid var(--line); border-radius: 0;
+  background: #fbfdfc; max-height: 190px; overflow-y: auto;
+}
+.log-row {
+  display: flex; gap: 14px; align-items: center; padding: 8px 14px;
+  font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.log-row:last-child { border-bottom: none; }
+.log-row .ok { color: var(--accent-dark); font-weight: 700; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .06em; margin-left: auto; }
+.log-row.empty { font-style: italic; }
+
+/* ---------- print: schedule cards only, no chrome ---------- */
+@media print {
+  .no-print, .card-actions, .dose-log { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; break-inside: avoid; border: 1px solid #ccc; }
+  .slot { border: 1px solid #999; }
+  .slot.done { background: #e6f2f0 !important; color: #000 !important; box-shadow: none; }
+}

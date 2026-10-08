@@ -30,7 +30,7 @@
     <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
   </section>
 
-  <section class="panel">
+  <section class="panel no-print">
     <div class="panel-head">
       <h2>Add a medication</h2>
       <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
@@ -65,6 +65,11 @@
 
   <section>
     <h2 class="section-title">Today's schedule <span class="section-sub">tap a slot to log a dose</span></h2>
+    <div class="list-toolbar no-print">
+      <input id="med-search" type="search" placeholder="Search medications…" aria-label="Search medications">
+      <button id="printBtn" type="button">Print schedule</button>
+      <button id="csvBtn" type="button">Export CSV</button>
+    </div>
     <div id="med-list"></div>
   </section>
 

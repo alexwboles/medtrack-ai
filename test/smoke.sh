@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MedTrack AI smoke tests — 14 checks. Fails fast on first failure.
+# MedTrack AI smoke tests — 24 checks (12 shell + 12 in the Node logic block).
 set -u
 cd "$(dirname "$0")/.."
 PASS=0; FAIL=0
@@ -78,12 +78,51 @@ const adh = M.adherence(a.med, 3, T);
 (hist.length === 3 && hist[2].taken === 0 && adh === 50)
   ? ok('historyFor 3 days; adherence 50%') : bad('adherence=' + adh);
 
+// 15: refillMed resets the pill count; bad input rejected
+a.med.pillsRemaining = 5;
+const rf = M.refillMed(meds, a.med.id, 30);
+const rfBad = M.refillMed(meds, a.med.id, -2);
+const rfFrac = M.refillMed(meds, a.med.id, 2.5);
+const rfMissing = M.refillMed(meds, 'nope', 30);
+(rf.ok && a.med.pillsRemaining === 30 && M.daysLeft(a.med) === 15 &&
+ !rfBad.ok && !rfFrac.ok && !rfMissing.ok)
+  ? ok('refillMed: 5 -> 30 pills, 15 days left; rejects bad input') : bad('refillMed');
+
+// 16: doseLog returns newest-first entries, honors limit
+a.med.log.push({ date: M.addDays(T, -2), time: '20:00', at: M.addDays(T, -2) + 'T20:01:00.000Z' });
+const log = M.doseLog(a.med, 2);
+const logAll = M.doseLog(a.med);
+(log.length === 2 && logAll.length >= log.length && M.doseLog({ log: [] }).length === 0)
+  ? ok('doseLog: newest-first, limit 2, empty log -> []') : bad('doseLog=' + JSON.stringify(log));
+// order check: first entry must be the newest 'at'
+const sorted = logAll.every((e, i, arr) => i === 0 || arr[i-1].at >= e.at);
+sorted ? ok('doseLog entries sorted newest-first') : bad('doseLog order');
+
+// 17: medsToCSV header + per-med row
+const csv = M.medsToCSV(meds, T, '21:00');
+const clines = csv.split('\n');
+(clines[0] === 'name,dose,times,pills_remaining,days_left,refill_alert,adherence_7d' &&
+ clines.length === 2 && clines[1].indexOf('Lisinopril,10mg,08:00;20:00,30,15,no,') === 0)
+  ? ok('medsToCSV: header + row with days_left 15, no refill') : bad('csv=' + csv);
+
 console.log('');
 console.log('logic: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 EOF
 rc=$?
 [ $rc -eq 0 ] || { echo "  FAIL: node logic block (exit $rc)"; FAIL=$((FAIL+1)); }
+
+# 15-16: new UI controls exist in index.html
+for id in med-search printBtn csvBtn; do
+  if grep -q "id=\"$id\"" index.html; then ok "index.html has id=$id"; else bad "index.html missing id=$id"; fi
+done
+
+# 17: print CSS + dose-log styles present
+if grep -q '@media print' css/style.css && grep -q '\.dose-log' css/style.css && grep -q '\.list-toolbar' css/style.css; then
+  ok "print CSS + dose-log + toolbar styles present"
+else
+  bad "print/dose-log/toolbar CSS missing"
+fi
 
 echo ""
 echo "smoke: $PASS passed, $FAIL failed"

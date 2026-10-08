@@ -18,6 +18,11 @@ Add each medication (name, dose, schedule times, pills on hand) → tap time slo
 5. **Custom schedules** — any number of daily times (e.g. `08:00, 13:00, 20:00`), notes like "take with food".
 6. **Honest validation** — bad times, negative pill counts, and unscheduled slots are rejected, never silently accepted.
 7. **100% local** — no accounts, no servers, no tracking. Your medication list never leaves this device.
+8. **Refill logging** — "Log refill" resets the pill count when you pick up a new bottle; refill alerts recalculate instantly.
+9. **Dose log** — every medication shows its recent logged doses (date + time) in an expandable log.
+10. **Search** — find a medication by name as the list grows.
+11. **Print schedule** — clean print view of today's cards for the fridge or a caregiver.
+12. **CSV export** — medication list with adherence and refill status for your doctor visit.
 
 ## Pricing vision
 Free forever for personal use · **$5/mo Family** (shared view for caregivers, refill reminders) · white-label for clinics.

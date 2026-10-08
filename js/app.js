@@ -13,6 +13,7 @@
   }
 
   var meds = load();
+  var medSearch = '';
   function el(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -63,7 +64,16 @@
       return;
     }
 
-    list.innerHTML = meds.map(function (m) {
+    var visible = meds.filter(function (m) {
+      return m.name.toLowerCase().indexOf(medSearch) !== -1;
+    });
+    if (medSearch && !visible.length) {
+      list.innerHTML = '<div class="empty">No medications match "' + esc(medSearch) + '".</div>';
+      renderHistory();
+      return;
+    }
+
+    list.innerHTML = visible.map(function (m) {
       var dl = M.daysLeft(m);
       var refill = M.refillAlert(m);
       var adh = M.adherence(m, 7, today);
@@ -72,6 +82,9 @@
         return '<button class="slot' + (done ? ' done' : '') + '" data-act="dose" data-id="' + m.id + '" data-time="' + t + '">' +
           (done ? '✓ ' : '') + t + '</button>';
       }).join('');
+      var logRows = M.doseLog(m, 10).map(function (e) {
+        return '<div class="log-row"><span>' + esc(e.date) + '</span><span>' + esc(e.time) + '</span><span class="ok">logged</span></div>';
+      }).join('') || '<div class="log-row empty">No doses logged yet.</div>';
       return '<div class="card' + (refill ? ' low' : '') + '">' +
         '<div class="card-head"><div><h3>' + esc(m.name) + '</h3>' +
         '<div class="meta">' + esc(m.dose) + (m.notes ? ' · ' + esc(m.notes) : '') + '</div></div>' +
@@ -79,7 +92,11 @@
         (refill ? '<div class="refill">Refill soon — about ' + dl + ' day' + (dl === 1 ? '' : 's') + ' left.</div>' : '') +
         '<div class="slots">' + slots + '</div>' +
         '<div class="stats">7-day adherence: <strong>' + (adh == null ? '—' : adh + '%') + '</strong></div>' +
-        '<div class="card-actions"><button class="danger" data-act="del" data-id="' + m.id + '">Remove</button></div>' +
+        '<div class="dose-log" id="log-' + m.id + '" style="display:none">' + logRows + '</div>' +
+        '<div class="card-actions">' +
+        '<button data-act="refill" data-id="' + m.id + '">Log refill</button>' +
+        '<button data-act="log" data-id="' + m.id + '">Dose log</button>' +
+        '<button class="danger" data-act="del" data-id="' + m.id + '">Remove</button></div>' +
         '</div>';
     }).join('');
 
@@ -105,6 +122,16 @@
       if (m && M.takenOn(m, M.todayStr(), time)) M.undoDose(meds, id, M.todayStr(), time);
       else M.logDose(meds, id, M.todayStr(), time);
       render();
+    } else if (act === 'refill') {
+      var m2 = M.findMed(meds, id);
+      var raw = prompt('New pill count for ' + (m2 ? m2.name : 'this medication') + ':', m2 ? String(m2.pillsRemaining) : '');
+      if (raw === null) return;
+      var res = M.refillMed(meds, id, raw);
+      if (!res.ok) { alert(res.error); return; }
+      render();
+    } else if (act === 'log') {
+      var panel = el('log-' + id);
+      if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
     } else if (act === 'del') {
       if (confirm('Remove this medication and its log?')) {
         meds = meds.filter(function (x) { return x.id !== id; });
@@ -130,6 +157,26 @@
     el('f-name').value = ''; el('f-dose').value = ''; el('f-times').value = '';
     el('f-pills').value = ''; el('f-notes').value = ''; el('f-threshold').value = '7';
     render();
+  });
+
+  function downloadFile(filename, text, mime) {
+    var blob = new Blob([text], { type: mime });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  }
+
+  el('med-search').addEventListener('input', function (e) {
+    medSearch = e.target.value.trim().toLowerCase();
+    render();
+  });
+  el('printBtn').addEventListener('click', function () { window.print(); });
+  el('csvBtn').addEventListener('click', function () {
+    if (!meds.length) { alert('No medications to export yet.'); return; }
+    downloadFile('medtrack-medications.csv', M.medsToCSV(meds, M.todayStr(), nowHHMM()), 'text/csv;charset=utf-8');
   });
 
   // Disclaimer footer

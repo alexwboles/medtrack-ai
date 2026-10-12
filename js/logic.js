@@ -36,27 +36,39 @@
     var errors = [];
     if (!input.name || !String(input.name).trim()) errors.push('Medication name is required.');
     if (!input.dose || !String(input.dose).trim()) errors.push('Dose is required (e.g. "10mg", "1 tablet").');
+    var prn = !!input.prn;
     var times = input.times || [];
-    if (!times.length) errors.push('Add at least one scheduled time.');
+    if (prn) {
+      var mpd = Number(input.maxPerDay);
+      if (isNaN(mpd) || mpd < 1 || Math.floor(mpd) !== mpd)
+        errors.push('As-needed meds need a whole-number max doses per day ≥ 1.');
+    } else {
+      if (!times.length) errors.push('Add at least one scheduled time.');
+    }
     times.forEach(function (t) { if (!validTime(t)) errors.push('Bad time: ' + t + ' (use HH:MM).'); });
     var pills = Number(input.pillsRemaining);
     if (isNaN(pills) || pills < 0 || Math.floor(pills) !== pills) errors.push('Pills remaining must be a whole number ≥ 0.');
     var thr = Number(input.refillThreshold == null ? 7 : input.refillThreshold);
     if (isNaN(thr) || thr < 0) errors.push('Refill alert threshold must be ≥ 0 days.');
+    var lead = Number(input.refillLeadDays == null ? 3 : input.refillLeadDays);
+    if (isNaN(lead) || lead < 0) errors.push('Refill lead time must be ≥ 0 days.');
     return { ok: errors.length === 0, errors: errors };
   }
 
   function addMed(meds, input) {
     var v = validateMed(input);
     if (!v.ok) return { ok: false, errors: v.errors };
-    var times = input.times.slice().sort();
+    var times = (input.times || []).slice().sort();
     var med = {
       id: genId(),
       name: String(input.name).trim(),
       dose: String(input.dose).trim(),
+      prn: !!input.prn,
+      maxPerDay: input.prn ? Number(input.maxPerDay) : 0,
       times: times,
       pillsRemaining: Number(input.pillsRemaining),
       refillThreshold: Number(input.refillThreshold == null ? 7 : input.refillThreshold),
+      refillLeadDays: Number(input.refillLeadDays == null ? 3 : input.refillLeadDays),
       notes: String(input.notes || '').trim(),
       createdAt: input.today || todayStr(),
       log: [] // {date:'YYYY-MM-DD', time:'HH:MM', at: ISO}
@@ -98,7 +110,11 @@
     return { ok: false, error: 'No logged dose to undo.' };
   }
 
-  function dosesPerDay(med) { return med.times.length; }
+  function dosesPerDay(med) {
+    // As-needed meds: worst case is the daily cap.
+    if (med.prn) return med.maxPerDay > 0 ? med.maxPerDay : 0;
+    return med.times.length;
+  }
 
   function daysLeft(med) {
     var dpd = dosesPerDay(med);
@@ -108,6 +124,69 @@
 
   function refillAlert(med) {
     return daysLeft(med) <= med.refillThreshold;
+  }
+
+  // ---- as-needed (PRN) doses: log any time, capped at maxPerDay ----
+  function prnTakenOn(med, date) {
+    return med.log.filter(function (e) { return e.date === date; }).length;
+  }
+
+  function logPrnDose(meds, id, date) {
+    var med = findMed(meds, id);
+    if (!med) return { ok: false, error: 'Medication not found.' };
+    if (!med.prn) return { ok: false, error: 'Not an as-needed medication.' };
+    var taken = prnTakenOn(med, date);
+    if (taken >= med.maxPerDay)
+      return { ok: false, error: 'Daily limit reached (' + med.maxPerDay + ' per day).' };
+    var d = new Date();
+    med.log.push({
+      date: date,
+      time: pad(d.getHours()) + ':' + pad(d.getMinutes()),
+      at: d.toISOString(), prn: true
+    });
+    med.pillsRemaining = Math.max(0, med.pillsRemaining - 1);
+    return { ok: true, med: med, takenToday: taken + 1 };
+  }
+
+  // ---- adherence by time of day: which slot do you keep missing? ----
+  function adherenceByTime(meds, days, today) {
+    today = today || todayStr();
+    var slots = {};
+    for (var i = days - 1; i >= 0; i--) {
+      var date = addDays(today, -i);
+      meds.forEach(function (m) {
+        if (m.prn) return; // as-needed doses have no schedule to keep
+        var hasLogs = m.log.some(function (e) { return e.date === date; });
+        if (m.createdAt > date && !hasLogs) return;
+        m.times.forEach(function (t) {
+          var s = slots[t] || (slots[t] = { time: t, scheduled: 0, taken: 0 });
+          s.scheduled++;
+          if (takenOn(m, date, t)) s.taken++;
+        });
+      });
+    }
+    return Object.keys(slots).sort().map(function (t) {
+      var s = slots[t];
+      return {
+        time: t, scheduled: s.scheduled, taken: s.taken,
+        pct: s.scheduled ? Math.round((s.taken / s.scheduled) * 100) : null
+      };
+    });
+  }
+
+  // ---- refill order-by date: order `refillLeadDays` before the bottle empties ----
+  function orderByDate(med, today) {
+    today = today || todayStr();
+    return addDays(today, daysLeft(med) - refillLeadDays(med));
+  }
+  function refillLeadDays(med) {
+    var n = Number(med.refillLeadDays);
+    return (isNaN(n) || n < 0) ? 3 : Math.floor(n);
+  }
+  // True when the order-by date is today or past — time to call the pharmacy.
+  function orderAlert(med, today) {
+    today = today || todayStr();
+    return orderByDate(med, today) <= today;
   }
 
   // Doses scheduled earlier today (or on `date`) that are not yet logged.
@@ -185,13 +264,13 @@
       var s = String(v == null ? '' : v);
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }
-    var rows = [['name', 'dose', 'times', 'pills_remaining', 'days_left', 'refill_alert', 'adherence_7d']];
+    var rows = [['name', 'dose', 'times', 'prn', 'pills_remaining', 'days_left', 'order_by', 'refill_alert', 'adherence_7d']];
     (meds || []).forEach(function (m) {
-      var adh = adherence(m, 7, today);
+      var adh = m.prn ? null : adherence(m, 7, today);
       rows.push([
-        m.name, m.dose, (m.times || []).join(';'),
-        m.pillsRemaining, daysLeft(m),
-        refillAlert(m) ? 'yes' : 'no',
+        m.name, m.dose, (m.times || []).join(';'), m.prn ? 'yes' : '',
+        m.pillsRemaining, daysLeft(m), orderByDate(m, today),
+        (refillAlert(m) || orderAlert(m, today)) ? 'yes' : 'no',
         adh == null ? '' : adh + '%'
       ]);
     });
@@ -203,10 +282,12 @@
     return meds.map(function (m) {
       return {
         id: m.id, name: m.name, dose: m.dose, times: m.times.slice(),
+        prn: !!m.prn, maxPerDay: m.maxPerDay || 0,
         pillsRemaining: m.pillsRemaining, daysLeft: daysLeft(m),
         refillAlert: refillAlert(m),
+        orderBy: orderByDate(m, today), orderAlert: orderAlert(m, today),
         missed: missedDoses(m, today, nowHHMM),
-        adherence7: adherence(m, 7, today)
+        adherence7: m.prn ? null : adherence(m, 7, today)
       };
     });
   }
@@ -216,9 +297,12 @@
     toStr: toStr, parse: parse, addDays: addDays, todayStr: todayStr,
     validateMed: validateMed, addMed: addMed, findMed: findMed,
     logDose: logDose, undoDose: undoDose, takenOn: takenOn,
+    logPrnDose: logPrnDose, prnTakenOn: prnTakenOn,
     refillMed: refillMed, doseLog: doseLog, medsToCSV: medsToCSV,
     dosesPerDay: dosesPerDay, daysLeft: daysLeft, refillAlert: refillAlert,
+    refillLeadDays: refillLeadDays, orderByDate: orderByDate, orderAlert: orderAlert,
     missedDoses: missedDoses, allMissed: allMissed,
-    historyFor: historyFor, adherence: adherence, summarize: summarize
+    historyFor: historyFor, adherence: adherence, adherenceByTime: adherenceByTime,
+    summarize: summarize
   };
 }));

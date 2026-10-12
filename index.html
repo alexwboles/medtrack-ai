@@ -46,13 +46,22 @@
       </div>
       <div class="row">
         <label>Schedule times (comma-separated HH:MM)
-          <input id="f-times" type="text" placeholder="e.g. 08:00, 20:00" required>
+          <input id="f-times" type="text" placeholder="e.g. 08:00, 20:00">
         </label>
         <label>Pills remaining
           <input id="f-pills" type="number" min="0" step="1" placeholder="e.g. 30" required>
         </label>
         <label>Refill alert (days left)
           <input id="f-threshold" type="number" min="0" step="1" value="7">
+        </label>
+        <label>Order lead time (days)
+          <input id="f-lead" type="number" min="0" step="1" value="3" title="Order the refill this many days before the bottle runs out">
+        </label>
+      </div>
+      <div class="row">
+        <label class="checkline"><input id="f-prn" type="checkbox"> As-needed (no fixed schedule)</label>
+        <label id="f-maxwrap" style="display:none">Max doses per day
+          <input id="f-maxperday" type="number" min="1" step="1" value="3">
         </label>
       </div>
       <label>Notes (optional)

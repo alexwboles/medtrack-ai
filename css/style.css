@@ -349,3 +349,15 @@ button.danger:hover { background: var(--danger-bg); border-color: #eba98f; }
   .slot { border: 1px solid #999; }
   .slot.done { background: #e6f2f0 !important; color: #000 !important; box-shadow: none; }
 }
+
+/* ---------- PRN + by-time adherence (no rounded edges) ---------- */
+.prn-tag {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  background: #e6f2f0; color: #0f766e; border: 1px solid #bfe0da; padding: 2px 8px; border-radius: 0;
+}
+.slot.prn { border-style: dashed; font-weight: 700; }
+.slot.prn:disabled { opacity: .45; cursor: default; }
+.bytime { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bytime-lbl { font-size: 13px; color: var(--muted, #666); font-weight: 600; }
+.checkline { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.checkline input { width: auto; }

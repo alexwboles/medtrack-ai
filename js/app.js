@@ -51,7 +51,7 @@
       m.times.forEach(function (t) { scheduledToday++; if (M.takenOn(m, today, t)) takenToday++; });
     });
     el('stat-taken').textContent = takenToday + '/' + scheduledToday;
-    el('stat-refills').textContent = meds.filter(M.refillAlert).length;
+    el('stat-refills').textContent = meds.filter(function (m) { return M.refillAlert(m) || M.orderAlert(m, today); }).length;
     el('stat-meds').textContent = meds.length;
 
     if (!meds.length) {
@@ -76,20 +76,36 @@
     list.innerHTML = visible.map(function (m) {
       var dl = M.daysLeft(m);
       var refill = M.refillAlert(m);
-      var adh = M.adherence(m, 7, today);
-      var slots = m.times.map(function (t) {
-        var done = M.takenOn(m, today, t);
-        return '<button class="slot' + (done ? ' done' : '') + '" data-act="dose" data-id="' + m.id + '" data-time="' + t + '">' +
-          (done ? '✓ ' : '') + t + '</button>';
-      }).join('');
+      var order = M.orderAlert(m, today);
+      var orderBy = M.orderByDate(m, today);
+      var adh = m.prn ? null : M.adherence(m, 7, today);
+      var slots;
+      if (m.prn) {
+        var taken = M.prnTakenOn(m, today);
+        var left = Math.max(0, m.maxPerDay - taken);
+        slots = '<button class="slot prn" data-act="prn" data-id="' + m.id + '"' + (left === 0 ? ' disabled' : '') + '>' +
+          '+ Log dose (' + taken + '/' + m.maxPerDay + ' today)</button>';
+      } else {
+        slots = m.times.map(function (t) {
+          var done = M.takenOn(m, today, t);
+          return '<button class="slot' + (done ? ' done' : '') + '" data-act="dose" data-id="' + m.id + '" data-time="' + t + '">' +
+            (done ? '✓ ' : '') + t + '</button>';
+        }).join('');
+      }
       var logRows = M.doseLog(m, 10).map(function (e) {
         return '<div class="log-row"><span>' + esc(e.date) + '</span><span>' + esc(e.time) + '</span><span class="ok">logged</span></div>';
       }).join('') || '<div class="log-row empty">No doses logged yet.</div>';
-      return '<div class="card' + (refill ? ' low' : '') + '">' +
-        '<div class="card-head"><div><h3>' + esc(m.name) + '</h3>' +
+      var refillMsg = '';
+      if (refill || order) {
+        refillMsg = '<div class="refill">' +
+          (refill ? 'Refill soon — about ' + dl + ' day' + (dl === 1 ? '' : 's') + ' left. ' : '') +
+          'Order by ' + esc(orderBy) + ' to stay ahead.</div>';
+      }
+      return '<div class="card' + ((refill || order) ? ' low' : '') + '">' +
+        '<div class="card-head"><div><h3>' + esc(m.name) + (m.prn ? ' <span class="prn-tag">as-needed</span>' : '') + '</h3>' +
         '<div class="meta">' + esc(m.dose) + (m.notes ? ' · ' + esc(m.notes) : '') + '</div></div>' +
         '<div class="pills"><span class="num">' + m.pillsRemaining + '</span><span class="lbl">pills left · ~' + dl + ' days</span></div></div>' +
-        (refill ? '<div class="refill">Refill soon — about ' + dl + ' day' + (dl === 1 ? '' : 's') + ' left.</div>' : '') +
+        refillMsg +
         '<div class="slots">' + slots + '</div>' +
         '<div class="stats">7-day adherence: <strong>' + (adh == null ? '—' : adh + '%') + '</strong></div>' +
         '<div class="dose-log" id="log-' + m.id + '" style="display:none">' + logRows + '</div>' +
@@ -105,11 +121,17 @@
 
   function renderHistory() {
     var hist = M.historyFor(meds, 7, M.todayStr());
+    var byTime = M.adherenceByTime(meds, 7, M.todayStr());
+    var timeHtml = byTime.length ? '<div class="bytime"><span class="bytime-lbl">By time of day:</span> ' +
+      byTime.map(function (s) {
+        var cls = s.pct >= 90 ? 'good' : (s.pct >= 70 ? 'ok' : 'bad');
+        return '<span class="hday ' + cls + '"><span>' + esc(s.time) + '</span><strong>' + s.pct + '%</strong></span>';
+      }).join('') + '</div>' : '';
     el('history').innerHTML = hist.map(function (d) {
       var pct = d.scheduled ? Math.round(d.taken / d.scheduled * 100) : 100;
       var cls = pct === 100 ? 'good' : (pct >= 70 ? 'ok' : 'bad');
       return '<div class="hday ' + cls + '"><span>' + d.date.slice(5) + '</span><strong>' + d.taken + '/' + d.scheduled + '</strong></div>';
-    }).join('');
+    }).join('') + timeHtml;
   }
 
   document.addEventListener('click', function (e) {
@@ -121,6 +143,10 @@
       var m = M.findMed(meds, id);
       if (m && M.takenOn(m, M.todayStr(), time)) M.undoDose(meds, id, M.todayStr(), time);
       else M.logDose(meds, id, M.todayStr(), time);
+      render();
+    } else if (act === 'prn') {
+      var res = M.logPrnDose(meds, id, M.todayStr());
+      if (!res.ok) alert(res.error);
       render();
     } else if (act === 'refill') {
       var m2 = M.findMed(meds, id);
@@ -140,15 +166,25 @@
     }
   });
 
+  el('f-prn').addEventListener('change', function () {
+    var prn = el('f-prn').checked;
+    el('f-maxwrap').style.display = prn ? '' : 'none';
+    el('f-times').required = !prn;
+    el('f-times').placeholder = prn ? 'not needed for as-needed' : 'e.g. 08:00, 20:00';
+  });
+
   el('med-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var times = el('f-times').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     var res = M.addMed(meds, {
       name: el('f-name').value,
       dose: el('f-dose').value,
+      prn: el('f-prn').checked,
+      maxPerDay: el('f-maxperday').value,
       times: times,
       pillsRemaining: el('f-pills').value,
       refillThreshold: el('f-threshold').value || 7,
+      refillLeadDays: el('f-lead').value || 0,
       notes: el('f-notes').value
     });
     var err = el('form-error');
@@ -156,6 +192,8 @@
     err.style.display = 'none';
     el('f-name').value = ''; el('f-dose').value = ''; el('f-times').value = '';
     el('f-pills').value = ''; el('f-notes').value = ''; el('f-threshold').value = '7';
+    el('f-lead').value = '3'; el('f-prn').checked = false;
+    el('f-maxwrap').style.display = 'none'; el('f-times').required = true;
     render();
   });
 

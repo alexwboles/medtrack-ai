@@ -74,7 +74,7 @@ const hasToday = dl.some(e => e.date === T && e.time === '08:00');
 // Flow 10: CSV export carries the full roster with adherence
 const csv = M.medsToCSV(meds, T, '21:00');
 const cl = csv.split('\n');
-(cl[0] === 'name,dose,times,pills_remaining,days_left,refill_alert,adherence_7d' &&
+(cl[0] === 'name,dose,times,prn,pills_remaining,days_left,order_by,refill_alert,adherence_7d' &&
  cl.length === 3 && cl[1].indexOf('Metformin') === 0 && cl[2].indexOf('Vitamin D') === 0)
   ? ok('flow10: CSV header + one row per medication') : bad('flow10 csv=' + csv);
 
@@ -84,6 +84,33 @@ const hits = meds.filter(m => m.name.toLowerCase().indexOf(q) !== -1);
 const noHits = meds.filter(m => m.name.toLowerCase().indexOf('zzz') !== -1);
 (hits.length === 1 && hits[0].name === 'Metformin' && noHits.length === 0)
   ? ok('flow11: search "metform" -> 1 hit; "zzz" -> none') : bad('flow11');
+
+// Flow 12: PRN journey — allergy med logged as needed, capped daily
+const pm = [];
+const pa = M.addMed(pm, { name: 'Loratadine', dose: '10mg', prn: true, maxPerDay: 1, pillsRemaining: 10, today: T });
+const pr1 = M.logPrnDose(pm, pa.med.id, T);
+const pr2 = M.logPrnDose(pm, pa.med.id, T);
+(pr1.ok && !pr2.ok && pa.med.pillsRemaining === 9 && M.allMissed(pm, T, '23:00').length === 0)
+  ? ok('flow12: PRN dose logged once; 2nd blocked; no missed-dose flags for PRN') : bad('flow12 prn');
+
+// Flow 13: refill order-by journey — pharmacy lead time beats the empty bottle
+const om = [];
+const oa = M.addMed(om, { name: 'Thyroid', dose: '50mcg', times: ['07:00'], pillsRemaining: 5, refillLeadDays: 3, today: T });
+const ob = M.orderByDate(oa.med, T);
+(!M.orderAlert(oa.med, T) && ob === M.addDays(T, 2))
+  ? ok('flow13: 5 pills, 3-day lead -> order by ' + ob + ' (no alert yet)') : bad('flow13 orderBy=' + ob);
+
+// Flow 14: by-time adherence journey — evenings are the weak slot
+const tm = [];
+const ta = M.addMed(tm, { name: 'TwoADay', dose: '5mg', times: ['08:00', '21:00'], pillsRemaining: 60, today: M.addDays(T, -3) });
+['08:00', '21:00'].forEach(t => M.logDose(tm, ta.med.id, M.addDays(T, -2), t));
+M.logDose(tm, ta.med.id, M.addDays(T, -1), '08:00');
+M.logDose(tm, ta.med.id, T, '08:00');
+const abt = M.adherenceByTime(tm, 3, T);
+const ev = abt.filter(s => s.time === '21:00')[0];
+const mo = abt.filter(s => s.time === '08:00')[0];
+(mo.pct === 100 && ev.pct === 33)
+  ? ok('flow14: mornings 100%, evenings 33% — weak slot identified') : bad('flow14 byTime=' + JSON.stringify(abt));
 
 console.log('');
 console.log('e2e: ' + pass + ' passed, ' + fail + ' failed');

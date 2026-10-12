@@ -98,12 +98,54 @@ const logAll = M.doseLog(a.med);
 const sorted = logAll.every((e, i, arr) => i === 0 || arr[i-1].at >= e.at);
 sorted ? ok('doseLog entries sorted newest-first') : bad('doseLog order');
 
-// 17: medsToCSV header + per-med row
+// 17: medsToCSV header + per-med row (now with prn + order_by columns)
 const csv = M.medsToCSV(meds, T, '21:00');
 const clines = csv.split('\n');
-(clines[0] === 'name,dose,times,pills_remaining,days_left,refill_alert,adherence_7d' &&
- clines.length === 2 && clines[1].indexOf('Lisinopril,10mg,08:00;20:00,30,15,no,') === 0)
-  ? ok('medsToCSV: header + row with days_left 15, no refill') : bad('csv=' + csv);
+(clines[0] === 'name,dose,times,prn,pills_remaining,days_left,order_by,refill_alert,adherence_7d' &&
+ clines.length === 2 && clines[1].indexOf('Lisinopril,10mg,08:00;20:00,,30,15,') === 0)
+  ? ok('medsToCSV: header + row with order_by date, no refill') : bad('csv=' + csv);
+
+// 18: PRN meds — validate, log with daily cap, pill countdown
+const pv = M.validateMed({ name: 'Ibuprofen', dose: '200mg', prn: true, maxPerDay: 0, pillsRemaining: 20 });
+const pv2 = M.validateMed({ name: 'Ibuprofen', dose: '200mg', prn: true, maxPerDay: 3, pillsRemaining: 20 });
+(!pv.ok && pv2.ok) ? ok('validateMed: PRN needs maxPerDay >= 1') : bad('prn validation');
+const prnMeds = [];
+const pa = M.addMed(prnMeds, { name: 'Ibuprofen', dose: '200mg', prn: true, maxPerDay: 2, pillsRemaining: 20, today: T });
+(pa.ok && pa.med.prn && pa.med.maxPerDay === 2 && pa.med.times.length === 0)
+  ? ok('addMed: PRN med added without schedule') : bad('prn addMed');
+const p1 = M.logPrnDose(prnMeds, pa.med.id, T);
+const p2 = M.logPrnDose(prnMeds, pa.med.id, T);
+const p3 = M.logPrnDose(prnMeds, pa.med.id, T);
+(p1.ok && p2.ok && !p3.ok && /Daily limit/.test(p3.error) && pa.med.pillsRemaining === 18 && M.prnTakenOn(pa.med, T) === 2)
+  ? ok('logPrnDose: 2 logged, 3rd rejected at cap, pills 20 -> 18') : bad('prn cap');
+const pSched = M.logPrnDose(meds, a.med.id, T);
+(!pSched.ok) ? ok('logPrnDose rejects scheduled meds') : bad('prn on scheduled med');
+(M.dosesPerDay(pa.med) === 2 && M.daysLeft(pa.med) === 9)
+  ? ok('PRN daysLeft uses daily cap: 18 pills / 2 per day = 9 days') : bad('prn daysLeft');
+
+// 19: adherence by time of day
+const tm = [];
+const ta = M.addMed(tm, { name: 'AM Drug', dose: '5mg', times: ['08:00', '20:00'], pillsRemaining: 60, today: M.addDays(T, -2) });
+M.logDose(tm, ta.med.id, M.addDays(T, -1), '08:00'); // morning taken
+M.logDose(tm, ta.med.id, M.addDays(T, -1), '20:00'); // evening taken
+M.logDose(tm, ta.med.id, T, '08:00');               // morning taken, evening missed
+const abt = M.adherenceByTime(tm, 2, T);
+const am = abt.filter(s => s.time === '08:00')[0];
+const pm = abt.filter(s => s.time === '20:00')[0];
+(am && am.pct === 100 && pm && pm.pct === 50)
+  ? ok('adherenceByTime: mornings 100%, evenings 50%') : bad('byTime=' + JSON.stringify(abt));
+
+// 20: refill order-by date with lead time
+const om = [];
+const oa = M.addMed(om, { name: 'Daily', dose: '10mg', times: ['08:00'], pillsRemaining: 10, refillLeadDays: 3, today: T });
+(M.orderByDate(oa.med, T) === M.addDays(T, 7) && !M.orderAlert(oa.med, T))
+  ? ok('orderByDate: 10 pills, 3-day lead -> order by ' + M.addDays(T, 7)) : bad('orderBy=' + M.orderByDate(oa.med, T));
+oa.med.pillsRemaining = 3;
+(M.orderAlert(oa.med, T) && M.orderByDate(oa.med, T) === T)
+  ? ok('orderAlert fires when order-by date is today') : bad('orderAlert');
+const summ = M.summarize(om, T, null)[0];
+(summ.orderBy === T && summ.orderAlert && summ.adherence7 != null)
+  ? ok('summarize carries order_by + orderAlert') : bad('summarize order');
 
 console.log('');
 console.log('logic: ' + pass + ' passed, ' + fail + ' failed');

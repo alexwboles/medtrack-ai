@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MedTrack AI — Medication Schedule Tracker</title>
+<title>MedTrack AI — your digital pillbox</title>
+<meta name="description" content="Never wonder 'did I take it?' again. Tap-to-log dose timeline, refill board, and a print-ready doctor report. Free, local-first, no signup.">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -14,83 +15,122 @@
     </span>
     <div>
       <h1>MedTrack <span class="ai">AI</span></h1>
-      <p class="tagline">Never wonder "did I take it?" again.</p>
+      <p class="tagline">Your digital pillbox — never wonder "did I take it?" again.</p>
     </div>
     <p class="hdr-date" id="today-line"></p>
   </div>
+  <nav class="topnav no-print" aria-label="Sections">
+    <div class="wrap topnav-inner">
+      <button class="navbtn active" data-view="today" type="button">Today</button>
+      <button class="navbtn" data-view="meds" type="button">Medications</button>
+      <button class="navbtn" data-view="refills" type="button">Refills <span class="navbadge" id="refill-count"></span></button>
+      <button class="navbtn" data-view="report" type="button">Doctor report</button>
+    </div>
+  </nav>
 </header>
 
 <main class="wrap">
   <section class="disclaimer" id="disclaimer"></section>
   <section id="missed-banner" class="banner" style="display:none"></section>
 
-  <section class="stats-row">
-    <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses taken today</span></div>
-    <div class="stat"><span class="num" id="stat-streak">0 days</span><span class="lbl">perfect-day streak</span></div>
-    <div class="stat alertable"><span class="num" id="stat-refills">0</span><span class="lbl">need a refill</span></div>
-    <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
-  </section>
+  <!-- ============ TODAY VIEW ============ -->
+  <div id="view-today" class="view">
+    <section class="stats-row">
+      <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses taken today</span></div>
+      <div class="stat"><span class="num" id="stat-streak">0 days</span><span class="lbl">perfect-day streak</span></div>
+      <div class="stat alertable"><span class="num" id="stat-refills">0</span><span class="lbl">need a refill</span></div>
+      <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
+    </section>
 
-  <section class="panel no-print">
-    <div class="panel-head">
-      <h2>Add a medication</h2>
-      <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
+    <section id="upnext" class="upnext" style="display:none" aria-label="Next dose"></section>
+
+    <section>
+      <h2 class="section-title">Today's timeline <span class="section-sub">tap a dose to log it</span></h2>
+      <div id="timeline"></div>
+    </section>
+
+    <section id="history-sec">
+      <h2 class="section-title">Weekly pill box <span class="section-sub">last 7 days</span></h2>
+      <div id="history" class="history"></div>
+    </section>
+  </div>
+
+  <!-- ============ MEDICATIONS VIEW ============ -->
+  <div id="view-meds" class="view" style="display:none">
+    <section class="panel no-print">
+      <div class="panel-head">
+        <h2>Add a medication</h2>
+        <p class="hint">Tap a time slot to check off a dose; tap again to undo. Pill counts drop automatically as you log doses.</p>
+      </div>
+      <form id="med-form">
+        <div class="row">
+          <label>Name
+            <input id="f-name" type="text" maxlength="80" placeholder="e.g. Lisinopril" required>
+          </label>
+          <label>Dose
+            <input id="f-dose" type="text" maxlength="40" placeholder="e.g. 10mg, 1 tablet" required>
+          </label>
+        </div>
+        <div class="row">
+          <label>Schedule times (comma-separated HH:MM)
+            <input id="f-times" type="text" placeholder="e.g. 08:00, 20:00">
+          </label>
+          <label>Pills remaining
+            <input id="f-pills" type="number" min="0" step="1" placeholder="e.g. 30" required>
+          </label>
+          <label>Refill alert (days left)
+            <input id="f-threshold" type="number" min="0" step="1" value="7">
+          </label>
+          <label>Order lead time (days)
+            <input id="f-lead" type="number" min="0" step="1" value="3" title="Order the refill this many days before the bottle runs out">
+          </label>
+        </div>
+        <div class="row">
+          <label class="checkline"><input id="f-prn" type="checkbox"> As-needed (no fixed schedule)</label>
+          <label id="f-maxwrap" style="display:none">Max doses per day
+            <input id="f-maxperday" type="number" min="1" step="1" value="3">
+          </label>
+        </div>
+        <label>Notes (optional)
+          <input id="f-notes" type="text" maxlength="200" placeholder="e.g. take with food">
+        </label>
+        <div id="form-error" class="error" style="display:none"></div>
+        <button type="submit" class="primary">Add medication</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="section-title">Medication cabinet <span class="section-sub">every med, its schedule and supply</span></h2>
+      <div class="list-toolbar no-print">
+        <input id="med-search" type="search" placeholder="Search medications…" aria-label="Search medications">
+        <button id="remindBtn" type="button" title="Get a browser notification when a dose is due">Enable reminders</button>
+        <button id="printBtn" type="button">Print schedule</button>
+        <button id="csvBtn" type="button">Export CSV</button>
+        <button id="backupBtn" type="button">Backup</button>
+        <button id="restoreBtn" type="button">Restore</button>
+        <input id="restoreFile" type="file" accept=".json,application/json" style="display:none" aria-hidden="true">
+      </div>
+      <div id="med-list"></div>
+    </section>
+  </div>
+
+  <!-- ============ REFILLS VIEW ============ -->
+  <div id="view-refills" class="view" style="display:none">
+    <h2 class="section-title">Refill board <span class="section-sub">order before the bottle runs dry</span></h2>
+    <div id="refill-board"></div>
+  </div>
+
+  <!-- ============ DOCTOR REPORT VIEW ============ -->
+  <div id="view-report" class="view" style="display:none">
+    <div class="report-actions no-print">
+      <div>
+        <h2 class="section-title">Doctor report <span class="section-sub">adherence logbook for your next check-up</span></h2>
+        <p class="hint">A clean one-page summary: 7-day adherence per medication, missed doses, and refill status. Prints without app chrome.</p>
+      </div>
+      <button id="reportPrintBtn" class="primary" type="button">Print report</button>
     </div>
-    <form id="med-form">
-      <div class="row">
-        <label>Name
-          <input id="f-name" type="text" maxlength="80" placeholder="e.g. Lisinopril" required>
-        </label>
-        <label>Dose
-          <input id="f-dose" type="text" maxlength="40" placeholder="e.g. 10mg, 1 tablet" required>
-        </label>
-      </div>
-      <div class="row">
-        <label>Schedule times (comma-separated HH:MM)
-          <input id="f-times" type="text" placeholder="e.g. 08:00, 20:00">
-        </label>
-        <label>Pills remaining
-          <input id="f-pills" type="number" min="0" step="1" placeholder="e.g. 30" required>
-        </label>
-        <label>Refill alert (days left)
-          <input id="f-threshold" type="number" min="0" step="1" value="7">
-        </label>
-        <label>Order lead time (days)
-          <input id="f-lead" type="number" min="0" step="1" value="3" title="Order the refill this many days before the bottle runs out">
-        </label>
-      </div>
-      <div class="row">
-        <label class="checkline"><input id="f-prn" type="checkbox"> As-needed (no fixed schedule)</label>
-        <label id="f-maxwrap" style="display:none">Max doses per day
-          <input id="f-maxperday" type="number" min="1" step="1" value="3">
-        </label>
-      </div>
-      <label>Notes (optional)
-        <input id="f-notes" type="text" maxlength="200" placeholder="e.g. take with food">
-      </label>
-      <div id="form-error" class="error" style="display:none"></div>
-      <button type="submit" class="primary">Add medication</button>
-    </form>
-  </section>
-
-  <section>
-    <h2 class="section-title">Today's schedule <span class="section-sub">tap a slot to log a dose</span></h2>
-    <div class="list-toolbar no-print">
-      <input id="med-search" type="search" placeholder="Search medications…" aria-label="Search medications">
-      <button id="remindBtn" type="button" title="Get a browser notification when a dose is due">Enable reminders</button>
-      <button id="printBtn" type="button">Print schedule</button>
-      <button id="csvBtn" type="button">Export CSV</button>
-      <button id="backupBtn" type="button">Backup</button>
-      <button id="restoreBtn" type="button">Restore</button>
-      <input id="restoreFile" type="file" accept=".json,application/json" style="display:none" aria-hidden="true">
-    </div>
-    <div id="med-list"></div>
-  </section>
-
-  <section>
-    <h2 class="section-title">Weekly pill box <span class="section-sub">last 7 days</span></h2>
-    <div id="history" class="history"></div>
-  </section>
+    <div id="doctor-report" class="report"></div>
+  </div>
 
   <footer class="foot">
     <p>MedTrack AI runs 100% in your browser. Your medication list never leaves this device — no accounts, no tracking.</p>

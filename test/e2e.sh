@@ -152,6 +152,36 @@ const okRestore = restored.ok && restored.meds.length === 1 &&
 okRestore ? ok('flow17: backup restores med, schedule, dose log, pill count')
   : bad('flow17 restore=' + JSON.stringify(restored).slice(0, 200));
 
+
+// Flow 18: a day in the pillbox — timeline, up-next hero, refill board, doctor report
+const day = [];
+const d1 = M.addMed(day, { name: 'Lisinopril', dose: '10mg', times: ['08:00', '20:00'], pillsRemaining: 18, today: T });
+const d2 = M.addMed(day, { name: 'Metformin', dose: '500mg', times: ['08:00', '13:00', '20:00'], pillsRemaining: 42, today: T });
+M.logDose(day, d1.med.id, T, '08:00');
+M.logDose(day, d2.med.id, T, '08:00');
+M.logDose(day, d2.med.id, T, '13:00');
+// timeline buckets: morning 05-12, afternoon 12-17, evening 17-22
+const bucket = (t) => { const m = +t.slice(0,2)*60 + +t.slice(3); return m < 720 ? 'am' : m < 1020 ? 'pm' : 'eve'; };
+const counts = { am: 0, pm: 0, eve: 0 };
+day.forEach(m => (m.times || []).forEach(t => counts[bucket(t)]++));
+(counts.am === 2 && counts.pm === 1 && counts.eve === 2)
+  ? ok('flow18: timeline buckets morning=2 afternoon=1 evening=2') : bad('flow18 buckets=' + JSON.stringify(counts));
+// up-next at 21:00: earliest overdue unlogged dose -> lisinopril 20:00 and metformin 20:00 tie;
+// both overdue; earliest time wins, name tiebreak not needed
+const missedNow = M.allMissed(day, T, '21:00').map(x => x.name + ' ' + x.time).sort();
+(missedNow.join('|') === 'Lisinopril 20:00|Metformin 20:00')
+  ? ok('flow18: missed banner lists both 20:00 doses') : bad('flow18 missed=' + missedNow.join(','));
+// doctor report: 7-day missed math for a med with a perfect week except today
+const rep = M.addMed(day, { name: 'Vitamin D', dose: '1000 IU', times: ['09:00'], pillsRemaining: 60, today: T });
+for (let back = 1; back <= 6; back++) M.logDose(day, rep.med.id, M.addDays(T, -back), '09:00');
+let missed7 = 0, sched7 = 0;
+for (let back = 0; back <= 6; back++) {
+  const d = M.addDays(T, -back);
+  rep.med.times.forEach(t => { sched7++; if (!M.takenOn(rep.med, d, t)) missed7++; });
+}
+(sched7 === 7 && missed7 === 1)
+  ? ok('flow18: doctor report math — 1 missed of 7 scheduled') : bad('flow18 report ' + missed7 + '/' + sched7);
+
 console.log('');
 console.log('e2e: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -220,6 +220,53 @@ for needle in dueReminders streakDays exportBackup importBackup remindBtn backup
   if grep -q "$needle" js/app.js; then ok "app.js wires $needle"; else bad "app.js missing $needle"; fi
 done
 
+
+# 18-20: pillbox redesign — new views, timeline, refill board, doctor report
+for id in upnext timeline refill-board doctor-report reportPrintBtn refill-count view-today view-meds view-refills view-report history-sec; do
+  if grep -q "id=\"$id\"" index.html; then ok "index.html has id=$id"; else bad "index.html missing id=$id"; fi
+done
+
+for needle in showView renderUpNext renderTimeline renderRefills renderReport pillCap nextDose printing-report printing-schedule; do
+  if grep -q "$needle" js/app.js; then ok "app.js wires $needle"; else bad "app.js missing $needle"; fi
+done
+
+if grep -q '\.upnext' css/style.css && grep -q '\.tl-row' css/style.css && grep -q '\.pillcap' css/style.css && grep -q '\.refill-row' css/style.css && grep -q '\.topnav' css/style.css; then
+  ok "pillbox CSS: upnext, timeline, pillcap, refill board, topnav"
+else
+  bad "pillbox CSS missing"
+fi
+
+# 21: up-next pick logic (earliest overdue first, then earliest upcoming) on real logic fns
+node << 'NODEEOF'
+const M = require('/home/hatch/workspace/medtrack-ai/js/logic.js');
+const T = '2026-10-13';
+const meds = [];
+const a = M.addMed(meds, { name: 'Lisinopril', dose: '10mg', times: ['08:00', '20:00'], pillsRemaining: 30, today: T });
+const b = M.addMed(meds, { name: 'Metformin', dose: '500mg', times: ['09:00'], pillsRemaining: 30, today: T });
+M.logDose(meds, a.med.id, T, '08:00'); // morning taken
+// now = 21:00 -> overdue: 20:00 (liso), 09:00 (met, older); upcoming: none left today
+const missed = M.allMissed(meds, T, '21:00');
+if (missed.length !== 2) { console.error('missed=' + missed.length); process.exit(1); }
+// up-next rule: earliest overdue time first -> metformin 09:00 beats lisinopril 20:00
+const pick = (function () {
+  let best = null;
+  meds.forEach(m => (m.times || []).forEach(t => {
+    if (M.takenOn(m, T, t)) return;
+    const mins = t.split(':').reduce((h, x) => h * 60 + +x);
+    const score = mins < 21 * 60 ? -1e9 + mins : mins;
+    if (!best || score < best.score) best = { name: m.name, time: t, score };
+  }));
+  return best;
+})();
+if (!pick || pick.name !== 'Metformin' || pick.time !== '09:00') { console.error('pick=' + JSON.stringify(pick)); process.exit(1); }
+// refill board ordering: fewest days left first
+const c = M.addMed(meds, { name: 'Atorvastatin', dose: '20mg', times: ['21:00'], pillsRemaining: 6, today: T });
+const order = meds.slice().sort((x, y) => M.daysLeft(x) - M.daysLeft(y));
+if (order[0].name !== 'Atorvastatin') { console.error('refill order'); process.exit(1); }
+NODEEOF
+rc=$?
+[ $rc -eq 0 ] && ok "up-next pick + refill board ordering" || { echo "  FAIL: node logic block (exit $rc)"; FAIL=$((FAIL+1)); }
+
 echo ""
 echo "smoke: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

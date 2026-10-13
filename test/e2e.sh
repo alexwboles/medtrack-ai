@@ -112,6 +112,46 @@ const mo = abt.filter(s => s.time === '08:00')[0];
 (mo.pct === 100 && ev.pct === 33)
   ? ok('flow14: mornings 100%, evenings 33% — weak slot identified') : bad('flow14 byTime=' + JSON.stringify(abt));
 
+// Flow 15: reminder journey — due soon, overdue, logged, muted
+const rm = [];
+const rA = M.addMed(rm, { name: 'Morning Pill', dose: '10mg', times: ['08:00'], pillsRemaining: 30, today: T });
+const rB = M.addMed(rm, { name: 'Muted Pill', dose: '5mg', times: ['08:00'], pillsRemaining: 30, remind: false, today: T });
+const dueSoon = M.dueReminders(rm, T, '07:52', 10, 30);
+(dueSoon.length === 1 && dueSoon[0].name === 'Morning Pill' && !dueSoon[0].overdue)
+  ? ok('flow15: dose 8 min out is due, muted med stays silent') : bad('flow15 due=' + JSON.stringify(dueSoon));
+const overdue = M.dueReminders(rm, T, '08:25', 10, 30);
+(overdue.length === 1 && overdue[0].overdue)
+  ? ok('flow15: 25-min-overdue dose still nudged as overdue') : bad('flow15 overdue');
+const stale = M.dueReminders(rm, T, '12:00', 10, 30);
+(stale.length === 0)
+  ? ok('flow15: 4h-overdue dose ages out of reminders') : bad('flow15 stale');
+
+// Flow 16: streak journey — build it, break it, rebuild it
+const sm = [];
+const sA = M.addMed(sm, { name: 'Streaker', dose: '10mg', times: ['08:00'], pillsRemaining: 90, today: M.addDays(T, -5) });
+[M.addDays(T, -3), M.addDays(T, -2), M.addDays(T, -1)].forEach(d => M.logDose(sm, sA.med.id, d, '08:00'));
+(M.streakDays(sm, T, '07:30') === 3)
+  ? ok('flow16: 3 perfect days -> streak of 3') : bad('flow16 streak=' + M.streakDays(sm, T, '07:30'));
+(M.streakDays(sm, T, '09:30') === 0)
+  ? ok('flow16: today missed -> streak resets to 0') : bad('flow16 reset');
+M.logDose(sm, sA.med.id, T, '08:00');
+(M.streakDays(sm, T, '09:30') === 4)
+  ? ok('flow16: dose taken -> streak rebuilds to 4') : bad('flow16 rebuild');
+
+// Flow 17: backup journey — export everything, wipe, restore
+const bm = [];
+const bA = M.addMed(bm, { name: 'KeepMe', dose: '25mg', times: ['08:00', '20:00'], pillsRemaining: 14, today: T });
+M.logDose(bm, bA.med.id, T, '08:00');
+const snap = M.exportBackup(bm);
+const wiped = [];
+(wiped.length === 0) ? ok('flow17: list wiped (simulated device loss)') : bad('flow17 wipe');
+const restored = M.importBackup(snap);
+const okRestore = restored.ok && restored.meds.length === 1 &&
+  restored.meds[0].name === 'KeepMe' && restored.meds[0].log.length === 1 &&
+  restored.meds[0].times.length === 2 && restored.meds[0].pillsRemaining === 13;
+okRestore ? ok('flow17: backup restores med, schedule, dose log, pill count')
+  : bad('flow17 restore=' + JSON.stringify(restored).slice(0, 200));
+
 console.log('');
 console.log('e2e: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

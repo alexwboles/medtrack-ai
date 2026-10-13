@@ -97,7 +97,7 @@ p { margin: 0 0 12px; }
 .banner .tiny { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
 /* Stat cards — lozenges */
-.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
 .stat {
   background: var(--card);
   border: 1px solid var(--line);

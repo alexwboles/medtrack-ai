@@ -14,6 +14,8 @@
 
   var meds = load();
   var medSearch = '';
+  var NOTIFY_KEY = 'medtrack.notify.v1';   // 'granted' | 'denied' | null
+  var NOTIFIED_KEY = 'medtrack.notified.v1'; // JSON array of 'date|medId|time' keys already notified
   function el(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -53,6 +55,8 @@
     el('stat-taken').textContent = takenToday + '/' + scheduledToday;
     el('stat-refills').textContent = meds.filter(function (m) { return M.refillAlert(m) || M.orderAlert(m, today); }).length;
     el('stat-meds').textContent = meds.length;
+    var streak = M.streakDays(meds, today, now);
+    el('stat-streak').textContent = streak + (streak === 1 ? ' day' : ' days');
 
     if (!meds.length) {
       list.innerHTML = '<div class="empty"><span class="big" aria-hidden="true">' +
@@ -112,6 +116,8 @@
         '<div class="card-actions">' +
         '<button data-act="refill" data-id="' + m.id + '">Log refill</button>' +
         '<button data-act="log" data-id="' + m.id + '">Dose log</button>' +
+        (m.prn ? '' : '<button data-act="remind" data-id="' + m.id + '" title="Toggle dose reminders for this medication">' +
+          'Reminders: ' + (m.remind === false ? 'off' : 'on') + '</button>') +
         '<button class="danger" data-act="del" data-id="' + m.id + '">Remove</button></div>' +
         '</div>';
     }).join('');
@@ -158,6 +164,9 @@
     } else if (act === 'log') {
       var panel = el('log-' + id);
       if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+    } else if (act === 'remind') {
+      var m3 = M.findMed(meds, id);
+      if (m3) { m3.remind = m3.remind === false; render(); }
     } else if (act === 'del') {
       if (confirm('Remove this medication and its log?')) {
         meds = meds.filter(function (x) { return x.id !== id; });
@@ -217,8 +226,88 @@
     downloadFile('medtrack-medications.csv', M.medsToCSV(meds, M.todayStr(), nowHHMM()), 'text/csv;charset=utf-8');
   });
 
+  // ---------- dose reminders (browser notifications) ----------
+  function notifyEnabled() {
+    try { return localStorage.getItem(NOTIFY_KEY) === 'granted'; }
+    catch (e) { return false; }
+  }
+  function notifiedKeys() {
+    try { return JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function markNotified(key) {
+    var keys = notifiedKeys();
+    if (keys.indexOf(key) === -1) keys.push(key);
+    // keep the list small: only today's and recent keys
+    var cutoff = M.addDays(M.todayStr(), -2);
+    keys = keys.filter(function (k) { return k.split('|')[0] >= cutoff; });
+    try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify(keys.slice(-200))); } catch (e) {}
+  }
+
+  function checkReminders() {
+    if (!notifyEnabled()) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var today = M.todayStr();
+    var due = M.dueReminders(meds, today, nowHHMM(), 10, 30);
+    var seen = notifiedKeys();
+    due.forEach(function (d) {
+      var key = today + '|' + d.medId + '|' + d.time;
+      if (seen.indexOf(key) !== -1) return;
+      seen.push(key);
+      markNotified(key);
+      try {
+        new Notification(d.overdue ? 'Missed dose?' : 'Time for your dose', {
+          body: d.name + ' ' + d.dose + ' — was due ' + (d.overdue ? 'at ' : '') + d.time +
+            '. Tap a slot in MedTrack when you take it.',
+          tag: key
+        });
+      } catch (e) { /* notifications blocked */ }
+    });
+  }
+
+  el('remindBtn').addEventListener('click', function () {
+    if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
+    var done = function (perm) {
+      try { localStorage.setItem(NOTIFY_KEY, perm === 'granted' ? 'granted' : 'denied'); } catch (e) {}
+      el('remindBtn').textContent = perm === 'granted' ? 'Reminders on' : 'Enable reminders';
+      if (perm === 'granted') checkReminders();
+      else alert('Notifications were not allowed — reminders stay off.');
+    };
+    if (Notification.permission === 'granted') done('granted');
+    else if (Notification.permission === 'denied') done('denied');
+    else Notification.requestPermission().then(done);
+  });
+  if (notifyEnabled() && 'Notification' in window && Notification.permission === 'granted') {
+    el('remindBtn').textContent = 'Reminders on';
+  }
+  setInterval(checkReminders, 30000);
+
+  // ---------- backup / restore ----------
+  el('backupBtn').addEventListener('click', function () {
+    if (!meds.length) { alert('Nothing to back up yet.'); return; }
+    downloadFile('medtrack-backup-' + M.todayStr() + '.json',
+      M.exportBackup(meds), 'application/json;charset=utf-8');
+  });
+  el('restoreBtn').addEventListener('click', function () { el('restoreFile').click(); });
+  el('restoreFile').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var res = M.importBackup(reader.result);
+      if (!res.ok) { alert(res.error); e.target.value = ''; return; }
+      if (!confirm('Restore ' + res.meds.length + ' medication' + (res.meds.length === 1 ? '' : 's') +
+          ' from backup? This replaces your current list.')) { e.target.value = ''; return; }
+      meds = res.meds;
+      render();
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
+
   // Disclaimer footer
   el('disclaimer').textContent = M.DISCLAIMER;
 
   render();
+  checkReminders();
 })();

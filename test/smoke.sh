@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MedTrack AI smoke tests — 24 checks (12 shell + 12 in the Node logic block).
+# MedTrack AI smoke tests — 57 checks.
 set -u
 cd "$(dirname "$0")/.."
 PASS=0; FAIL=0
@@ -147,6 +147,48 @@ const summ = M.summarize(om, T, null)[0];
 (summ.orderBy === T && summ.orderAlert && summ.adherence7 != null)
   ? ok('summarize carries order_by + orderAlert') : bad('summarize order');
 
+// 21: dueReminders — due soon + recently overdue, skips logged/muted/PRN
+const rm = [];
+const ra = M.addMed(rm, { name: 'A', dose: '10mg', times: ['08:00', '20:00'], pillsRemaining: 30, today: T });
+const rb = M.addMed(rm, { name: 'B', dose: '5mg', prn: true, maxPerDay: 3, pillsRemaining: 10, today: T });
+const rc = M.addMed(rm, { name: 'C', dose: '5mg', times: ['08:00'], pillsRemaining: 10, remind: false, today: T });
+const d1 = M.dueReminders(rm, T, '07:55', 10, 30).map(x => x.name);
+(d1.length === 1 && d1[0] === 'A')
+  ? ok('dueReminders: 08:00 dose due at 07:55, PRN + muted excluded') : bad('due1=' + JSON.stringify(d1));
+const d2 = M.dueReminders(rm, T, '08:25', 10, 30);
+(d2.length === 1 && d2[0].overdue === true)
+  ? ok('dueReminders: 08:00 overdue at 08:25 flagged') : bad('due2=' + JSON.stringify(d2));
+M.logDose(rm, ra.med.id, T, '08:00');
+(M.dueReminders(rm, T, '08:25', 10, 30).length === 0)
+  ? ok('dueReminders: logged dose no longer due') : bad('logged dose still due');
+(M.dueReminders(rm, T, '19:55', 10, 30).length === 1)
+  ? ok('dueReminders: evening dose due at 19:55') : bad('evening due');
+
+// 22: streakDays — consecutive perfect days, today partial is fine
+const sm = [];
+const sa = M.addMed(sm, { name: 'S', dose: '10mg', times: ['08:00'], pillsRemaining: 30, today: M.addDays(T, -3) });
+M.logDose(sm, sa.med.id, M.addDays(T, -2), '08:00');
+M.logDose(sm, sa.med.id, M.addDays(T, -1), '08:00');
+(M.streakDays(sm, T, '07:00') === 2)
+  ? ok('streakDays: 2 perfect days, today all-future') : bad('streak=' + M.streakDays(sm, T, '07:00'));
+(M.streakDays(sm, T, '09:00') === 0)
+  ? ok('streakDays: today 08:00 missed -> streak broken') : bad('streak should break');
+M.logDose(sm, sa.med.id, T, '08:00');
+(M.streakDays(sm, T, '09:00') === 3)
+  ? ok('streakDays: today taken -> 3-day streak') : bad('streak=' + M.streakDays(sm, T, '09:00'));
+
+// 23: backup export/import round-trip + rejection of bad files
+const bm = [];
+M.addMed(bm, { name: 'Z', dose: '1mg', times: ['09:00'], pillsRemaining: 5, today: T });
+M.logDose(bm, bm[0].id, T, '09:00');
+const bjson = M.exportBackup(bm);
+const br = M.importBackup(bjson);
+(br.ok && br.meds.length === 1 && br.meds[0].log.length === 1 && br.meds[0].name === 'Z')
+  ? ok('exportBackup/importBackup round-trips meds + logs') : bad('backup round-trip');
+(!M.importBackup('not json').ok && !M.importBackup('{"app":"other","meds":[]}').ok &&
+ !M.importBackup('{"app":"medtrack-ai","meds":[{"name":""}]}').ok)
+  ? ok('importBackup rejects bad JSON / wrong app / invalid entry') : bad('importBackup validation');
+
 console.log('');
 console.log('logic: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
@@ -155,7 +197,7 @@ rc=$?
 [ $rc -eq 0 ] || { echo "  FAIL: node logic block (exit $rc)"; FAIL=$((FAIL+1)); }
 
 # 15-16: new UI controls exist in index.html
-for id in med-search printBtn csvBtn; do
+for id in med-search printBtn csvBtn stat-streak remindBtn backupBtn restoreBtn restoreFile; do
   if grep -q "id=\"$id\"" index.html; then ok "index.html has id=$id"; else bad "index.html missing id=$id"; fi
 done
 
@@ -165,6 +207,18 @@ if grep -q '@media print' css/style.css && grep -q '\.dose-log' css/style.css &&
 else
   bad "print/dose-log/toolbar CSS missing"
 fi
+
+# 18: stats-row fits 4 stats
+if grep -q "repeat(4, 1fr)" css/style.css; then
+  ok "stats-row has 4 columns"
+else
+  bad "stats-row not updated for 4 stats"
+fi
+
+# 19: app.js wires reminders, streak, backup/restore
+for needle in dueReminders streakDays exportBackup importBackup remindBtn backupBtn restoreBtn checkReminders "data-act=\"remind\""; do
+  if grep -q "$needle" js/app.js; then ok "app.js wires $needle"; else bad "app.js missing $needle"; fi
+done
 
 echo ""
 echo "smoke: $PASS passed, $FAIL failed"

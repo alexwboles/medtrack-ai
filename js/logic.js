@@ -70,6 +70,7 @@
       refillThreshold: Number(input.refillThreshold == null ? 7 : input.refillThreshold),
       refillLeadDays: Number(input.refillLeadDays == null ? 3 : input.refillLeadDays),
       notes: String(input.notes || '').trim(),
+      remind: input.remind !== false, // dose reminders on by default (scheduled meds)
       createdAt: input.today || todayStr(),
       log: [] // {date:'YYYY-MM-DD', time:'HH:MM', at: ISO}
     };
@@ -189,6 +190,85 @@
     return orderByDate(med, today) <= today;
   }
 
+  // ---- dose reminders: what's due right now (or recently overdue) ----
+  function toMinutes(hhmm) {
+    var p = String(hhmm || '').split(':');
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+  }
+
+  // Doses due within the next `withinMin` minutes, plus doses overdue by at
+  // most `lateMin` minutes — all unlogged. PRN meds and remind:false meds
+  // are excluded (PRN has no schedule; the user muted the rest).
+  function dueReminders(meds, date, nowHHMM, withinMin, lateMin) {
+    var now = toMinutes(nowHHMM);
+    var w = Math.max(0, Number(withinMin) || 10);
+    var l = Math.max(0, Number(lateMin) || 30);
+    var out = [];
+    (meds || []).forEach(function (m) {
+      if (m.prn || m.remind === false) return;
+      (m.times || []).forEach(function (t) {
+        if (takenOn(m, date, t)) return;
+        var diff = toMinutes(t) - now;
+        if (diff <= w && diff >= -l) {
+          out.push({ medId: m.id, name: m.name, dose: m.dose, time: t, overdue: diff < 0 });
+        }
+      });
+    });
+    return out.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
+  }
+
+  // ---- perfect-day streak: consecutive days with every scheduled dose taken ----
+  function streakDays(meds, today, nowHHMM) {
+    today = today || todayStr();
+    var streak = 0;
+    for (var back = 0; back < 365; back++) {
+      var date = addDays(today, -back);
+      var scheduled = 0, missed = 0;
+      (meds || []).forEach(function (m) {
+        if (m.prn) return;
+        var hasLogs = m.log.some(function (e) { return e.date === date; });
+        if (m.createdAt > date && !hasLogs) return; // didn't exist yet
+        (m.times || []).forEach(function (t) {
+          if (back === 0 && nowHHMM && t >= nowHHMM) return; // not due yet today
+          scheduled++;
+          if (!takenOn(m, date, t)) missed++;
+        });
+      });
+      if (scheduled === 0) {
+        if (back === 0) continue; // today's doses all in the future — don't break it
+        break;
+      }
+      if (missed > 0) break;
+      streak++;
+    }
+    return streak;
+  }
+
+  // ---- backup: full-fidelity JSON export / import (meds + dose logs) ----
+  function exportBackup(meds) {
+    return JSON.stringify({
+      app: 'medtrack-ai', version: 1,
+      exportedAt: new Date().toISOString(),
+      meds: meds || []
+    });
+  }
+
+  function importBackup(text) {
+    var data;
+    try { data = JSON.parse(text); }
+    catch (e) { return { ok: false, error: 'That file is not valid JSON.' }; }
+    if (!data || data.app !== 'medtrack-ai' || !Array.isArray(data.meds)) {
+      return { ok: false, error: 'That file is not a MedTrack backup.' };
+    }
+    for (var i = 0; i < data.meds.length; i++) {
+      var m = data.meds[i];
+      if (!m || typeof m.name !== 'string' || !m.name.trim() || typeof m.id !== 'string') {
+        return { ok: false, error: 'Backup entry ' + (i + 1) + ' is not a valid medication.' };
+      }
+    }
+    return { ok: true, meds: data.meds };
+  }
+
   // Doses scheduled earlier today (or on `date`) that are not yet logged.
   // nowHHMM only applies when date === today; pass null to list all unlogged.
   function missedDoses(med, date, nowHHMM) {
@@ -301,6 +381,8 @@
     refillMed: refillMed, doseLog: doseLog, medsToCSV: medsToCSV,
     dosesPerDay: dosesPerDay, daysLeft: daysLeft, refillAlert: refillAlert,
     refillLeadDays: refillLeadDays, orderByDate: orderByDate, orderAlert: orderAlert,
+    dueReminders: dueReminders, streakDays: streakDays,
+    exportBackup: exportBackup, importBackup: importBackup,
     missedDoses: missedDoses, allMissed: allMissed,
     historyFor: historyFor, adherence: adherence, adherenceByTime: adherenceByTime,
     summarize: summarize

@@ -26,6 +26,7 @@
 
   <section class="stats-row">
     <div class="stat"><span class="num" id="stat-taken">0/0</span><span class="lbl">doses taken today</span></div>
+    <div class="stat"><span class="num" id="stat-streak">0 days</span><span class="lbl">perfect-day streak</span></div>
     <div class="stat alertable"><span class="num" id="stat-refills">0</span><span class="lbl">need a refill</span></div>
     <div class="stat"><span class="num" id="stat-meds">0</span><span class="lbl">medications</span></div>
   </section>
@@ -76,8 +77,12 @@
     <h2 class="section-title">Today's schedule <span class="section-sub">tap a slot to log a dose</span></h2>
     <div class="list-toolbar no-print">
       <input id="med-search" type="search" placeholder="Search medications…" aria-label="Search medications">
+      <button id="remindBtn" type="button" title="Get a browser notification when a dose is due">Enable reminders</button>
       <button id="printBtn" type="button">Print schedule</button>
       <button id="csvBtn" type="button">Export CSV</button>
+      <button id="backupBtn" type="button">Backup</button>
+      <button id="restoreBtn" type="button">Restore</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" style="display:none" aria-hidden="true">
     </div>
     <div id="med-list"></div>
   </section>
